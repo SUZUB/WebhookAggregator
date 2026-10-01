@@ -20,3 +20,5 @@ WhatsApp Image*
 # HTML preview files
 *.html
 
+/target
+.env
