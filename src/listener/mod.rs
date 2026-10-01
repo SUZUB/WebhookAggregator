@@ -51,10 +51,12 @@ impl WebListener {
     pub async fn run(self) -> std::io::Result<()> {
         let addr = format! {"{}:{}", self.iface, self.port};
         let listener = TcpListener::bind(&addr).await?;
+        info!("Listening on {}", addr);
 
         axum::serve(listener, self.router)
             .with_graceful_shutdown(async {
                 let _ = tokio::signal::ctrl_c().await;
+                info!("Shutdown signal received, stopping listener");
             })
             .await
     }

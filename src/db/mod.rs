@@ -32,7 +32,9 @@ impl Database {
     pub async fn init() -> Result<Self, mysql_async::Error> {
         info!("Initializing database");
 
-        let pool = mysql_async::Pool::new(DatabaseConfig::try_load_env().to_opts(false));
+        let env = DatabaseConfig::try_load_env();
+
+        let pool = mysql_async::Pool::new(env.to_opts(false));
         let mut conn = pool.get_conn().await?;
 
         conn.query_drop(r"CREATE DATABASE IF NOT EXISTS webhookdb;")
@@ -41,7 +43,7 @@ impl Database {
         drop(conn);
         pool.disconnect().await?;
 
-        let pool = mysql_async::Pool::new(DatabaseConfig::try_load_env().to_opts(true));
+        let pool = mysql_async::Pool::new(env.to_opts(true));
         let mut conn = pool.get_conn().await?;
 
         conn.query_drop(

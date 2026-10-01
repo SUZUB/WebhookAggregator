@@ -107,6 +107,14 @@ impl Database {
         )
         .await?;
 
+        if conn.affected_rows() == 0 {
+            info!(
+                "Ignoring duplicate event {} from {}",
+                hex::encode(query.event_id),
+                query.client_name
+            );
+        }
+
         Ok(())
     }
 }

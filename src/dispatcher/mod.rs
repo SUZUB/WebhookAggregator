@@ -44,6 +44,7 @@ impl Dispatcher {
         }
 
         let capacity = self.database.get_service_capacity(id).await?;
+        info!("Loaded capacity {} for service {}", capacity, id);
         Ok(self
             .capacity_map
             .lock()
@@ -82,15 +83,13 @@ impl Dispatcher {
         let Some((client_id, event_id, service_id, target_url, payload)) =
             self.database.next_pending_request().await?
         else {
+            debug!("Woken up but no pending query was available");
             return Ok(());
         };
 
         let sem = self.service_semaphore(service_id).await?;
 
-        info!(
-            "Dispatched request to {} with payload {}",
-            target_url, payload
-        );
+        info!("Dispatched request to {}", target_url);
 
         let mut delay = BASE_DELAY;
         let mut status = "FAILED";
@@ -103,6 +102,7 @@ impl Dispatcher {
 
             match outcome {
                 Attempt::Delivered => {
+                    info!("Delivered to {} on attempt {}", target_url, attempt);
                     status = "SUCCESS";
                     break;
                 }
@@ -134,6 +134,7 @@ impl Dispatcher {
 
     pub async fn run(&self, stop: CancellationToken) -> Result<(), mysql_async::Error> {
         let mut tasks = JoinSet::new();
+        info!("Dispatcher started");
 
         loop {
             tokio::select! {
@@ -141,7 +142,9 @@ impl Dispatcher {
                     permit.expect("impossible").forget();
                     tasks.spawn(self.clone().handler());
 
-                    while tasks.try_join_next().is_some() {}
+                    while let Some(res) = tasks.try_join_next() {
+                        report(res);
+                    }
                 }
                 _ = stop.cancelled() => break,
             }
@@ -152,7 +155,19 @@ impl Dispatcher {
             tasks.spawn(self.clone().handler());
         }
 
-        while tasks.join_next().await.is_some() {}
+        info!("Dispatcher stopping, draining {} tasks", tasks.len());
+        while let Some(res) = tasks.join_next().await {
+            report(res);
+        }
+        info!("Dispatcher stopped");
         Ok(())
+    }
+}
+
+fn report(res: Result<Result<(), mysql_async::Error>, tokio::task::JoinError>) {
+    match res {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => error!("Dispatch database error: {}", e),
+        Err(e) => error!("Dispatch task failed: {}", e),
     }
 }
