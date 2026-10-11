@@ -8,7 +8,7 @@
 - **Skanda Shyam Nadig** (SRN: `PES1UG24CS458`)  
 **Organization:** Department of Computer Science & Engineering, PES University  
 **Date Created:** September 29, 2026  
-**Course:** Software Engineering (Mini-Project Deliverables Part-1, Batch BPS49)  
+**Project Code:** BPS49 — Webhook Aggregator Core Development Pipeline  
 
 ---
 
@@ -74,7 +74,7 @@ The introduction provides an overview of the entire Software Requirements Specif
 The purpose of this document is to provide a complete, rigorous, and unambiguous specification of the requirements for the **Webhook Aggregator System (WACDP)**. This specification serves as the formal contract between stakeholders, system designers, developers, and quality assurance engineers. It details the functional capabilities, external interfaces, non-functional performance envelopes, security controls, and design constraints of the middleware.  
 
 **Intended Audience:**
-- **Project Evaluators and Academic Faculty:** To verify conformance to Software Engineering principles and mini-project deliverable milestones.
+- **Engineering Reviewers & Technical Architects:** To verify conformance to system requirements, scalability constraints, and engineering milestones.
 - **System Architects:** To guide the derivation of the Software Architecture & Design Specification (IEEE Std 1016).
 - **Development Team:** To direct sprint implementation across Jira backlog items (`WACDP-4` through `WACDP-11`).
 - **QA & Verification Engineers:** To construct test plans and execution suites adhering to IEEE Std 829.
@@ -273,7 +273,7 @@ The Webhook Aggregator System is a self-contained, high-performance middleware s
 
 ## 3.2 Functions
 
-In strict adherence to engineering deliverables guidelines, all functional requirements are specified using the **exact method of specification**:
+In strict adherence to IEEE Std 830 specification standards, all functional requirements are specified using the **exact method of specification**:
 
 #### FR-01: Asynchronous Request Ingestion & Schema Validation
 - **Jira Mapping:** `WACDP-4` (EPIC-1: Request Ingestion Engine)
@@ -492,7 +492,7 @@ The system maintains a relational or embedded persistent datastore (SQLite/Postg
 - **Crash Recovery:** If the daemon process is restarted, persistent DLQ data remains uncorrupted, and active recurring schedules are reloaded from `recurring_schedules` within 3 seconds.
 
 ### 3.6.3 Security
-In strict compliance with mini-project requirements, the system establishes **3 Security Objectives** and **4 Security Requirements**:
+In strict compliance with system security engineering specifications, the system establishes **3 Security Objectives** and **4 Security Requirements**:
 
 #### Security Objectives:
 1. **SEC-OBJ-01: In-Flight & Egress Payload Authenticity & Confidentiality**  

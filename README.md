@@ -1,33 +1,32 @@
-# Software Engineering Mini-Project Deliverables (Part-1)
-## Webhook Aggregator System (WACDP)
+# Webhook Aggregator System (wagg / WACDP)
+## High-Throughput, Multi-Threaded Event Ingestion, Buffering & Reliable Dispatching Middleware
 
-**Course:** Software Engineering (Mini-Project)  
-**Topic Code / Project:** BPS49 — Webhook Aggregator Core Development Pipeline  
+**Project Code / Topic:** BPS49 — Webhook Aggregator Core Development Pipeline  
 **Team Members:**  
 - **Sumedh Girish** (SRN: `PES1UG24CS480`)  
 - **Subramani B M** (SRN: `PES1UG24CS473`)  
 - **Sujan S Halanannavar** (SRN: `PES1UG24CS477`)  
 - **Skanda Shyam Nadig** (SRN: `PES1UG24CS458`)  
 **Institution:** Department of Computer Science & Engineering, PES University  
-**Submission Deadline / ETA:** 28th September 2026  
-**Status:** Completed & Verified  
+**Baseline Version:** 1.0  
+**Status:** Production-Ready & Verified  
 
 ---
 
-## Executive Summary & Deliverables Matrix
+## Executive Overview & Engineering Specifications
 
-This repository contains the complete, rigorous, and standard-compliant deliverables for **Part-1 of the Software Engineering Mini-Project**, in strict accordance with the evaluation requirements defined in `SE_Mini_Project_Delivereables_Part-1.pdf`.
+This repository contains the complete, production-grade implementation and rigorous engineering documentation for the **Webhook Aggregator System (`wagg` / `WACDP`)**.
 
-All documents follow formal **IEEE Engineering Standards**, incorporate the Scrum sprint artifacts from Jira (`SCRUM_SumedhGirish_PES1UG24CS480_BPS49WebhookAggregator.pdf`), and integrate the system architecture diagrams provided in the project assets.
+All documents follow formal **IEEE Engineering Standards** (IEEE Std 830, IEEE Std 829, IEEE Std 1016), incorporate agile sprint backlogs from Jira (`SCRUM_SumedhGirish_PES1UG24CS480_BPS49WebhookAggregator.pdf`), and integrate comprehensive system architecture models and empirical performance benchmarks.
 
-### Deliverables Compliance Checklist
+### Engineering Specifications Index
 
-| Deliverable | Required Format / Standard | Mandatory Elements Required | Status | File Location |
+| Specification Document | Required Format / Standard | Mandatory Elements Covered | Status | File Location |
 | :--- | :--- | :--- | :---: | :--- |
 | **1. Software Requirements Specification (SRS)** | **IEEE Std 830-1998** / ISO/IEC/IEEE 29148 | • Introduction, Scope, Perspective, Constraints<br/>• FRs & NFRs using exact specification method<br/>• UML Use Case Diagram + Detailed Specifications<br/>• Security section with ≥ 2 Objectives & ≥ 2 Requirements | **100% Compliant** | [PDF Version (19 pages)](docs/1_Software_Requirements_Specification_SRS.pdf)<br/>[Markdown](docs/1_Software_Requirements_Specification_SRS.md) |
 | **2. Software Test Plan (STP)** | **IEEE Std 829-2008** / ISO/IEC/IEEE 29119 | • Test Plan Identifier, Intro & References<br/>• **Section 3** (Test Items & Risk Issues)<br/>• **Section 4** (Features to be Tested / Not Tested)<br/>• **Section 5** (Approach & Strategy)<br/>• **Section 5.1** (Security Validation Strategy)<br/>• Requirements Traceability Matrix (SRS ↔ Test Plan) | **100% Compliant** | [PDF Version (24 pages)](docs/2_Software_Test_Plan_and_Test_Cases.pdf)<br/>[Markdown](docs/2_Software_Test_Plan_and_Test_Cases.md) |
 | **3. Software Architecture & Design Specification (SADD)** | **IEEE Std 1016-2009** | • **Architecture:** Component Diagram & 9 Descriptions, Architectural Patterns, Requirements Traceability, Security Architecture<br/>• **Design:** ≥ 2 UML Sequence Diagrams, Multi-Swimlane Activity Diagram, REST API Design, Error Handling & Backoff Math | **100% Compliant** | [PDF Version (17 pages)](docs/3_Software_Architecture_and_Design_Specification_SADD.pdf)<br/>[Markdown](docs/3_Software_Architecture_and_Design_Specification_SADD.md) |
-| **4. Test Cases Suite (Test Plan Update)** | IEEE Std 829 Test Case Specifications | • Sufficient coverage of both FRs and NFRs<br/>• Minimum 7–10 test cases required (Includes **28 fully elaborated test cases** across Functional, Non-Functional, Security, and E2E) | **100% Compliant** | Included in [docs/2_Software_Test_Plan_and_Test_Cases.pdf](docs/2_Software_Test_Plan_and_Test_Cases.pdf) & [Markdown](docs/2_Software_Test_Plan_and_Test_Cases.md#10-comprehensive-test-cases-functional-non-functional--security) |
+| **4. Test Cases Suite (Test Plan Update)** | IEEE Std 829 Test Case Specifications | • Sufficient coverage of both FRs and NFRs<br/>• Comprehensive suite (Includes **28 fully elaborated test cases** across Functional, Non-Functional, Security, and E2E) | **100% Compliant** | Included in [docs/2_Software_Test_Plan_and_Test_Cases.pdf](docs/2_Software_Test_Plan_and_Test_Cases.pdf) & [Markdown](docs/2_Software_Test_Plan_and_Test_Cases.md#10-comprehensive-test-cases-functional-non-functional--security) |
 | **5. Performance Benchmark Datasheet** | System Performance & Verification Report | • Universal Scalability Law (USL) fitting (12.6k req/s)<br/>• Ingestion latency percentiles ($p99 < 15$ ms)<br/>• Little's Law dispatch capacity & memory profiles<br/>• CPU FlameGraphs & database fault recovery | **100% Verified** | [PDF Version (12 pages)](docs/4_Performance_Benchmark_Datasheet_Report.pdf) |
 
 ---
@@ -36,8 +35,7 @@ All documents follow formal **IEEE Engineering Standards**, incorporate the Scru
 
 ```text
 WebhookAggregator/
-├── README.md                                             # Master Project Index & Deliverables Matrix
-├── SE_Mini_Project_Delivereables_Part-1.pdf              # Evaluation Guidelines & Requirements
+├── README.md                                             # System Overview & Architecture Index
 ├── SCRUM_SumedhGirish_PES1UG24CS480_BPS49WebhookAggregator.pdf # Jira Sprint Backlog & Epics
 ├── report.pdf                                            # Performance Datasheet (Root Copy)
 ├── Cargo.toml                                            # Rust Package Configuration
@@ -58,7 +56,7 @@ WebhookAggregator/
 
 ---
 
-## Deliverables Summary
+## Core Specifications Summary
 
 ### 1. Software Requirements Specification (SRS) — IEEE Std 830-1998
 - **Scope & Perspective:** High-throughput, multi-threaded event ingestion, buffering, and dispatching middleware decoupling upstream microservices from downstream receivers.
@@ -112,9 +110,9 @@ WebhookAggregator/
 
 ---
 
-## Viewing the Deliverables
+## Accessing System Documentation
 
-### Option 1: PDF Format (Presentation & Evaluation)
+### Option 1: PDF Format (Architectural Documents)
 - [1_Software_Requirements_Specification_SRS.pdf](docs/1_Software_Requirements_Specification_SRS.pdf)
 - [2_Software_Test_Plan_and_Test_Cases.pdf](docs/2_Software_Test_Plan_and_Test_Cases.pdf)
 - [3_Software_Architecture_and_Design_Specification_SADD.pdf](docs/3_Software_Architecture_and_Design_Specification_SADD.pdf)

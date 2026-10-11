@@ -10,7 +10,7 @@
 - **Sujan S Halanannavar** (SRN: `PES1UG24CS477`)  
 - **Skanda Shyam Nadig** (SRN: `PES1UG24CS458`)  
 **Institution:** Department of Computer Science & Engineering, PES University  
-**Course:** Software Engineering (SE Mini-Project Deliverables Part-1)  
+**Project Code:** BPS49 — Webhook Aggregator Core Development Pipeline  
 **Date:** September 2026  
 **Status:** Approved / Architecture Baseline Version 1.0  
 
@@ -388,7 +388,7 @@ The system enforces strict multi-threading hygiene (`WACDP-10`):
 
 ## 8. Design: UML Sequence Diagrams
 
-In compliance with deliverable requirements, the following two comprehensive UML sequence diagrams specify the precise runtime execution flows:
+In compliance with IEEE Std 1016 design description standards, the following two comprehensive UML sequence diagrams specify the precise runtime execution flows:
 
 ### 8.1 Sequence Diagram 1: One-Shot Webhook Ingestion, Buffering, Worker Processing & Dispatch
 

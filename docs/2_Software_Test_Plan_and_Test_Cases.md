@@ -10,7 +10,7 @@
 - **Sujan S Halanannavar** (SRN: `PES1UG24CS477`)  
 - **Skanda Shyam Nadig** (SRN: `PES1UG24CS458`)  
 **Institution:** Department of Computer Science & Engineering, PES University  
-**Course:** Software Engineering (SE Mini-Project Deliverables Part-1)  
+**Project Code:** BPS49 — Webhook Aggregator Core Development Pipeline  
 **Date:** September 2026  
 **Status:** Approved / Test Baseline Version 1.0  
 
@@ -144,7 +144,7 @@ The testing approach implements a multi-tiered validation pyramid: Unit → Inte
 ---
 
 ### 5.1 Security Validation & Vulnerability Testing (Section 5.1)
-In strict compliance with deliverable requirements, Section 5.1 details the formal security validation strategy:
+In strict compliance with system verification requirements, Section 5.1 details the formal security validation strategy:
 
 #### 5.1.1 HMAC-SHA256 Signature Validation & Tamper Detection
 - **Objective:** Ensure outbound payloads cannot be modified in flight and downstream endpoints can definitively verify authenticity (`SEC-REQ-01`).
@@ -255,7 +255,7 @@ In strict compliance with deliverable requirements, Section 5.1 details the form
 | **Ingestion & Buffer Test Engineer** | Subramani B M (PES1UG24CS473) | Ingestion API validation, schema verification, non-blocking `service_queue` high-concurrency testing. |
 | **Concurrency & Scheduler Test Engineer** | Sujan S Halanannavar (PES1UG24CS477) | Worker thread pool allocation testing, timer handle precision verification, TSan race analysis. |
 | **Security & Dispatch Test Engineer** | Skanda Shyam Nadig (PES1UG24CS458) | HMAC-SHA256 signature verification, TLS handshake testing, DLQ persistence and audit log sanitization. |
-| **Project Guide / Evaluator** | Faculty Guide, Dept of CSE | Milestone verification, deliverable evaluation, and formal sign-off. |
+| **Project Guide & Lead Reviewer** | Faculty Technical Advisor, Dept of CSE | Milestone verification, technical review, and architectural sign-off. |
 
 ---
 
@@ -268,7 +268,7 @@ In strict compliance with deliverable requirements, Section 5.1 details the form
 | **M-03** | Integration Testing (Queues, Worker Pool, Scheduler) | Week 3 | Week 4 | Completed |
 | **M-04** | Dispatcher & Exponential Backoff Verification | Week 4 | Week 5 | In Progress |
 | **M-05** | Load, Stress & Security Penetration Testing | Week 5 | Week 6 | Scheduled |
-| **M-06** | Final Deliverables Compilation & Traceability Sign-off | Week 6 | Week 7 | Scheduled |
+| **M-06** | Final Specification Compilation & Traceability Sign-off | Week 6 | Week 7 | Scheduled |
 
 ---
 
@@ -310,7 +310,7 @@ This bidirectional matrix maps every functional requirement (FR), non-functional
 
 ## 10. Comprehensive Test Cases (Functional, Non-Functional & Security)
 
-In strict accordance with project deliverable guidelines (specifying a comprehensive suite covering functional, non-functional, and security requirements with 7–10+ test cases), the following 28 detailed test cases are defined across functional, non-functional, security, and end-to-end resilience suites (with actual results designated as TBD / Not Executed pending formal execution cycles):
+In strict accordance with IEEE Std 829 test engineering standards, the following 28 detailed test cases are defined across functional, non-functional, security, and end-to-end resilience suites (with actual results designated as TBD / Not Executed pending formal execution cycles):
 
 ---
 
