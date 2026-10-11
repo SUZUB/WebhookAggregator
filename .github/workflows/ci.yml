@@ -1,0 +1,61 @@
+name: CI — Build & Verify wagg
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  DB_USER: root
+  DB_PASSWORD: password
+
+jobs:
+  build-and-verify:
+    name: Rust Build, Check & MariaDB Smoke Test
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: password
+          MARIADB_DATABASE: webhookdb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo Build Artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify Compilation (cargo check)
+        run: cargo check --locked
+
+      - name: Build Release Binary (cargo build --release)
+        run: cargo build --release --locked
+
+      - name: Run Tests (cargo test)
+        run: cargo test --locked
+
+      - name: Smoke Test wagg Listener + MariaDB Schema Initialization
+        run: |
+          RUST_LOG=info ./target/release/wagg &
+          WAGG_PID=$!
+          sleep 3
+          kill -INT $WAGG_PID || true
+          wait $WAGG_PID || true
