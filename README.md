@@ -28,6 +28,7 @@ All documents follow formal **IEEE Engineering Standards**, incorporate the Scru
 | **2. Software Test Plan (STP)** | **IEEE Std 829-2008** / ISO/IEC/IEEE 29119 | • Test Plan Identifier, Intro & References<br/>• **Section 3** (Test Items & Risk Issues)<br/>• **Section 4** (Features to be Tested / Not Tested)<br/>• **Section 5** (Approach & Strategy)<br/>• **Section 5.1** (Security Validation Strategy)<br/>• Requirements Traceability Matrix (SRS ↔ Test Plan) | **100% Compliant** | [PDF Version (24 pages)](docs/2_Software_Test_Plan_and_Test_Cases.pdf)<br/>[Markdown](docs/2_Software_Test_Plan_and_Test_Cases.md) |
 | **3. Software Architecture & Design Specification (SADD)** | **IEEE Std 1016-2009** | • **Architecture:** Component Diagram & 9 Descriptions, Architectural Patterns, Requirements Traceability, Security Architecture<br/>• **Design:** ≥ 2 UML Sequence Diagrams, Multi-Swimlane Activity Diagram, REST API Design, Error Handling & Backoff Math | **100% Compliant** | [PDF Version (17 pages)](docs/3_Software_Architecture_and_Design_Specification_SADD.pdf)<br/>[Markdown](docs/3_Software_Architecture_and_Design_Specification_SADD.md) |
 | **4. Test Cases Suite (Test Plan Update)** | IEEE Std 829 Test Case Specifications | • Sufficient coverage of both FRs and NFRs<br/>• Minimum 7–10 test cases required (Includes **28 fully elaborated test cases** across Functional, Non-Functional, Security, and E2E) | **100% Compliant** | Included in [docs/2_Software_Test_Plan_and_Test_Cases.pdf](docs/2_Software_Test_Plan_and_Test_Cases.pdf) & [Markdown](docs/2_Software_Test_Plan_and_Test_Cases.md#10-comprehensive-test-cases-functional-non-functional--security) |
+| **5. Performance Benchmark Datasheet** | System Performance & Verification Report | • Universal Scalability Law (USL) fitting (12.6k req/s)<br/>• Ingestion latency percentiles ($p99 < 15$ ms)<br/>• Little's Law dispatch capacity & memory profiles<br/>• CPU FlameGraphs & database fault recovery | **100% Verified** | [PDF Version (12 pages)](docs/4_Performance_Benchmark_Datasheet_Report.pdf) |
 
 ---
 
@@ -38,6 +39,10 @@ WebhookAggregator/
 ├── README.md                                             # Master Project Index & Deliverables Matrix
 ├── SE_Mini_Project_Delivereables_Part-1.pdf              # Evaluation Guidelines & Requirements
 ├── SCRUM_SumedhGirish_PES1UG24CS480_BPS49WebhookAggregator.pdf # Jira Sprint Backlog & Epics
+├── report.pdf                                            # Performance Datasheet (Root Copy)
+├── Cargo.toml                                            # Rust Package Configuration
+├── Cargo.lock                                            # Cargo Dependency Lockfile
+├── src/                                                  # Production Rust Codebase (wagg)
 └── docs/
     ├── 1_Software_Requirements_Specification_SRS.md      # IEEE 830 SRS Document (Markdown)
     ├── 1_Software_Requirements_Specification_SRS.pdf     # IEEE 830 SRS Document (Presentation PDF)
@@ -45,6 +50,7 @@ WebhookAggregator/
     ├── 2_Software_Test_Plan_and_Test_Cases.pdf           # IEEE 829 Test Plan & 28 Test Cases (Presentation PDF)
     ├── 3_Software_Architecture_and_Design_Specification_SADD.md # IEEE 1016 SADD Document (Markdown)
     ├── 3_Software_Architecture_and_Design_Specification_SADD.pdf # IEEE 1016 SADD Document (Presentation PDF)
+    ├── 4_Performance_Benchmark_Datasheet_Report.pdf      # Performance Datasheet & USL Report (PDF)
     └── assets/
         ├── uml_use_case_diagram.jpeg                     # Webhook Aggregator Use Case Model
         └── activity_workflow_diagram.jpeg                # Webhook Aggregator 5-Swimlane Workflow
@@ -97,6 +103,13 @@ WebhookAggregator/
 - **Error Handling & Data Models:**
   - Comprehensive fault taxonomy, backoff algorithmic formulas, `WebhookTask` with `PayloadReference` memory bounding, `recurring_schedules` persistent SQL schema, and startup recovery flow.
 
+### 4. Performance Benchmark Datasheet Report (wagg Webhook Aggregator)
+- **Universal Scalability Law (USL):** System throughput modeled up to $12,639\text{ req/s}$ peak ceiling with $\sigma = 0.057$ serial contention.
+- **Latency Percentiles Under Load:** Ingestion latency evaluated via wrk2, k6, and Gatling, verifying $p50 \le 0.95\text{ ms}$ and $p99 \le 12.3\text{ ms}$ at 64 concurrent clients.
+- **Little's Law Dispatching:** Empirical validation of $7,470\text{ deliveries/s}$ capacity-bounded fan-out.
+- **Fault Injection & Recovery:** 0 stranded and 0 lost events across 113,029 burst requests and database connection cuts.
+- **System Footprint & Profiling:** Detailed heap allocation profiles ($12.5\text{ MiB}$ peak heap), CPU FlameGraphs, and InnoDB fsync latency distributions.
+
 ---
 
 ## Viewing the Deliverables
@@ -105,6 +118,7 @@ WebhookAggregator/
 - [1_Software_Requirements_Specification_SRS.pdf](docs/1_Software_Requirements_Specification_SRS.pdf)
 - [2_Software_Test_Plan_and_Test_Cases.pdf](docs/2_Software_Test_Plan_and_Test_Cases.pdf)
 - [3_Software_Architecture_and_Design_Specification_SADD.pdf](docs/3_Software_Architecture_and_Design_Specification_SADD.pdf)
+- [4_Performance_Benchmark_Datasheet_Report.pdf](docs/4_Performance_Benchmark_Datasheet_Report.pdf) *(or root [report.pdf](report.pdf))*
 
 ### Option 2: Markdown Format (GitHub Native)
 - [1_Software_Requirements_Specification_SRS.md](docs/1_Software_Requirements_Specification_SRS.md)
