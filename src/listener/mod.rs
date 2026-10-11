@@ -6,25 +6,25 @@ use axum::{
     http::StatusCode,
     routing::post,
 };
-use std::sync::Arc;
-use tokio::{net::TcpListener, sync::Semaphore};
+use tokio::net::TcpListener;
 
 use crate::Database;
 use crate::db::query::{Query, QueryErr};
+use crate::dispatcher::Doorbells;
 use crate::*;
 use request::Request;
 
 async fn request_handler(
-    State((db, signal)): State<(Database, Arc<Semaphore>)>,
+    State((db, doorbells)): State<(Database, Doorbells)>,
     Path(endpoint): Path<String>,
     Json(request): Json<Request>,
 ) -> Result<StatusCode, QueryErr> {
     info!("Got query on endpoint: {}", endpoint);
     let query = Query::try_from(request)?;
 
-    db.process_query(&query, &endpoint).await?;
-
-    signal.add_permits(1);
+    if let Some(service_id) = db.process_query(&query, &endpoint).await? {
+        doorbells.ring(service_id);
+    }
 
     Ok(StatusCode::OK)
 }
@@ -36,10 +36,10 @@ pub struct WebListener {
 }
 
 impl WebListener {
-    pub fn init(database: Database, signal: Arc<Semaphore>) -> Self {
+    pub fn init(database: Database, doorbells: Doorbells) -> Self {
         let router = Router::new()
             .route("/webhook/{endpoint}", post(request_handler))
-            .with_state((database, signal));
+            .with_state((database, doorbells));
 
         Self {
             iface: "0.0.0.0".to_string(),

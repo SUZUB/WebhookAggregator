@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut db = Database::init().await?;
     let dispatcher = Dispatcher::init(db.clone());
-    let signal = dispatcher.pending_requests.clone();
+    let doorbells = dispatcher.doorbells.clone();
 
     let stop = CancellationToken::new();
     let disp = tokio::spawn({
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         async move { dispatcher.run(s).await }
     });
 
-    let listener = WebListener::init(db.clone(), signal);
+    let listener = WebListener::init(db.clone(), doorbells);
     let served = listener.run().await;
 
     stop.cancel();

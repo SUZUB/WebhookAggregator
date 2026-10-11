@@ -52,36 +52,33 @@ impl Database {
     async fn get_endpoint_service(&self, endpoint: &str) -> Result<u32, QueryErr> {
         let mut conn = self.pool.get_conn().await?;
 
-        let row: Option<(u32,)> = conn
+        let row: Option<(u32, String, String)> = conn
             .exec_first(
-                r"SELECT service_id FROM routes WHERE endpoint = ?",
+                r"SELECT s.id, s.status, s.name
+                        FROM routes r JOIN services s
+                            ON r.service_id = s.id
+                        WHERE r.endpoint = ?",
                 (endpoint,),
             )
             .await?;
 
-        let Some((service_id,)) = row else {
+        let Some((service_id, status, service_name)) = row else {
             return Err(QueryErr::UnknownService(endpoint.to_string()));
         };
 
-        let row: Option<(String, String)> = conn
-            .exec_first(
-                r"SELECT status, name FROM services WHERE id = ?",
-                (service_id,),
-            )
-            .await?;
-
-        if let Some((status, service_name)) = row {
-            if status == "DOWN" {
-                return Err(QueryErr::ServiceUnavailable(service_name));
-            }
-        } else {
-            return Err(QueryErr::UnknownService(endpoint.to_string()));
-        };
+        if status == "DOWN" {
+            return Err(QueryErr::ServiceUnavailable(service_name));
+        }
 
         Ok(service_id)
     }
 
-    pub async fn process_query(&self, query: &Query, endpoint: &str) -> Result<(), QueryErr> {
+    /// Returns the service to wake when the event is new, `None` for a duplicate
+    pub async fn process_query(
+        &self,
+        query: &Query,
+        endpoint: &str,
+    ) -> Result<Option<u32>, QueryErr> {
         let ((client_id, pub_key), service_id) = tokio::try_join!(
             self.get_client_key(query),
             self.get_endpoint_service(endpoint)
@@ -113,9 +110,10 @@ impl Database {
                 hex::encode(query.event_id),
                 query.client_name
             );
+            return Ok(None);
         }
 
-        Ok(())
+        Ok(Some(service_id))
     }
 }
 

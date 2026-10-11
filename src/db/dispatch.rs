@@ -1,14 +1,15 @@
-use mysql_async::TxOpts;
-
 use super::*;
 
 impl Database {
-    pub async fn get_service_capacity(&self, service_id: u32) -> Result<usize, mysql_async::Error> {
+    pub async fn get_service(
+        &self,
+        service_id: u32,
+    ) -> Result<(String, usize), mysql_async::Error> {
         let mut conn = self.pool.get_conn().await?;
 
-        let Some(capacity) = conn
+        let Some(service) = conn
             .exec_first(
-                r"SELECT capacity FROM services WHERE status = 'UP' AND id = ?;",
+                r"SELECT url, capacity FROM services WHERE status = 'UP' AND id = ?;",
                 (service_id,),
             )
             .await?
@@ -16,60 +17,74 @@ impl Database {
             unreachable!();
         };
 
-        Ok(capacity)
+        Ok(service)
     }
 
-    pub async fn next_pending_request(
-        &self,
-    ) -> Result<Option<(u32, Vec<u8>, u32, String, String)>, mysql_async::Error> {
+    pub async fn pending_services(&self) -> Result<Vec<u32>, mysql_async::Error> {
         let mut conn = self.pool.get_conn().await?;
-        let mut tx = conn.start_transaction(TxOpts::default()).await?;
 
-        let row: Option<(String, String, u32, Vec<u8>, u32)> = tx
-            .exec_first(
-                r"SELECT s.url, q.payload, q.client_id, q.event_id, q.service_id
-                        FROM queries q JOIN services s
-                            ON q.service_id = s.id
-                        WHERE q.status = 'PENDING'
-                        ORDER BY q.recv_time
-                        LIMIT 1
-                        FOR UPDATE SKIP LOCKED;",
-                (),
+        conn.query(r"SELECT DISTINCT service_id FROM queries WHERE status = 'PENDING';")
+            .await
+    }
+
+    // Only the service's own claimer moves its rows out of PENDING, so a plain read
+    // followed by an update is race free and needs no row locks
+    pub async fn claim(
+        &self,
+        service_id: u32,
+        limit: usize,
+    ) -> Result<Vec<(u64, String)>, mysql_async::Error> {
+        let mut conn = self.pool.get_conn().await?;
+
+        let jobs: Vec<(u64, String)> = conn
+            .exec(
+                r"SELECT seq, payload FROM queries
+                        WHERE service_id = ? AND status = 'PENDING'
+                        ORDER BY seq
+                        LIMIT ?;",
+                (service_id, limit as u64),
             )
             .await?;
 
-        let Some((url, payload, client_id, event_id, service_id)) = row else {
-            tx.rollback().await?;
-            return Ok(None);
-        };
+        if jobs.is_empty() {
+            return Ok(jobs);
+        }
 
-        tx.exec_drop(
+        let seqs: Vec<String> = jobs.iter().map(|(seq, _)| seq.to_string()).collect();
+        conn.query_drop(format!(
             r"UPDATE queries
                     SET status = 'PROCESSING'
-                    WHERE client_id = ? AND event_id = ? AND service_id = ?;",
-            (client_id, &event_id, service_id),
-        )
+                    WHERE status = 'PENDING' AND seq IN ({});",
+            seqs.join(",")
+        ))
         .await?;
 
-        tx.commit().await?;
-
-        Ok(Some((client_id, event_id, service_id, url, payload)))
+        Ok(jobs)
     }
 
-    pub async fn set_query_status(
+    pub async fn processing(
         &self,
-        client_id: u32,
-        event_id: &[u8],
         service_id: u32,
-        status: &str,
-    ) -> Result<(), mysql_async::Error> {
+    ) -> Result<Vec<(u64, String)>, mysql_async::Error> {
+        let mut conn = self.pool.get_conn().await?;
+
+        conn.exec(
+            r"SELECT seq, payload FROM queries
+                    WHERE service_id = ? AND status = 'PROCESSING'
+                    ORDER BY seq;",
+            (service_id,),
+        )
+        .await
+    }
+
+    pub async fn set_query_status(&self, seq: u64, status: &str) -> Result<(), mysql_async::Error> {
         let mut conn = self.pool.get_conn().await?;
 
         conn.exec_drop(
             r"UPDATE queries
                     SET status = ?
-                    WHERE client_id = ? AND event_id = ? AND service_id = ?;",
-            (status, client_id, event_id, service_id),
+                    WHERE seq = ?;",
+            (status, seq),
         )
         .await
     }

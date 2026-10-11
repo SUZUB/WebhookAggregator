@@ -86,6 +86,7 @@ impl Database {
 
         conn.query_drop(
             r"CREATE TABLE IF NOT EXISTS queries (
+                        seq        BIGINT UNSIGNED AUTO_INCREMENT NOT NULL,
                         client_id  INT UNSIGNED NOT NULL,
                         event_id   BINARY(16) NOT NULL,
                         service_id INT UNSIGNED NOT NULL,
@@ -95,7 +96,9 @@ impl Database {
                         status     ENUM('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED') NOT NULL DEFAULT 'PENDING',
                         signature  BINARY(64) NOT NULL,
 
-                        PRIMARY KEY (client_id, event_id, service_id),
+                        PRIMARY KEY (seq),
+                        UNIQUE KEY dedup (client_id, event_id, service_id),
+                        KEY work (service_id, status, seq),
                         FOREIGN KEY (client_id) REFERENCES clients (id)
                             ON DELETE CASCADE,
                         FOREIGN KEY (service_id) REFERENCES services (id)

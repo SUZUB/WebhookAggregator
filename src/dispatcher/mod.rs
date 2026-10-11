@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::Semaphore;
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;
@@ -13,6 +13,8 @@ const MAX_ATTEMPTS: u32 = 5;
 const ATTEMPT_TIMEOUT: Duration = Duration::from_secs(10);
 const BASE_DELAY: Duration = Duration::from_millis(500);
 const MAX_DELAY: Duration = Duration::from_secs(30);
+const MAX_DB_DELAY: Duration = Duration::from_secs(5);
+const IDLE_RECHECK: Duration = Duration::from_secs(5);
 
 enum Attempt {
     Delivered,
@@ -20,12 +22,41 @@ enum Attempt {
     GiveUp(String),
 }
 
+/// Per-service wake-up hints from the listener. A ring only means "look again": rings that
+/// arrive while a claimer is busy collapse into one, so there is nothing to overflow.
+#[derive(Clone, Default)]
+pub struct Doorbells {
+    bells: Arc<Mutex<HashMap<u32, Arc<Notify>>>>,
+    added: Arc<Notify>,
+}
+
+impl Doorbells {
+    pub fn ring(&self, service_id: u32) {
+        self.bell(service_id).notify_one();
+    }
+
+    fn bell(&self, service_id: u32) -> Arc<Notify> {
+        self.bells
+            .lock()
+            .unwrap()
+            .entry(service_id)
+            .or_insert_with(|| {
+                self.added.notify_one();
+                Arc::new(Notify::new())
+            })
+            .clone()
+    }
+
+    fn services(&self) -> Vec<u32> {
+        self.bells.lock().unwrap().keys().copied().collect()
+    }
+}
+
 #[derive(Clone)]
 pub struct Dispatcher {
     database: Database,
     http: reqwest::Client,
-    capacity_map: Arc<Mutex<HashMap<u32, Arc<Semaphore>>>>,
-    pub pending_requests: Arc<Semaphore>,
+    pub doorbells: Doorbells,
 }
 
 impl Dispatcher {
@@ -33,25 +64,8 @@ impl Dispatcher {
         Self {
             database,
             http: reqwest::Client::new(),
-            capacity_map: Arc::new(Mutex::new(HashMap::new())),
-            pending_requests: Arc::new(Semaphore::new(0)),
+            doorbells: Doorbells::default(),
         }
-    }
-
-    async fn service_semaphore(&self, id: u32) -> Result<Arc<Semaphore>, mysql_async::Error> {
-        if let Some(sem) = self.capacity_map.lock().unwrap().get(&id) {
-            return Ok(sem.clone());
-        }
-
-        let capacity = self.database.get_service_capacity(id).await?;
-        info!("Loaded capacity {} for service {}", capacity, id);
-        Ok(self
-            .capacity_map
-            .lock()
-            .unwrap()
-            .entry(id)
-            .or_insert_with(|| Arc::new(Semaphore::new(capacity)))
-            .clone())
     }
 
     async fn try_send(&self, url: &str, payload: &str) -> Attempt {
@@ -79,41 +93,36 @@ impl Dispatcher {
         }
     }
 
-    async fn handler(self) -> Result<(), mysql_async::Error> {
-        let Some((client_id, event_id, service_id, target_url, payload)) =
-            self.database.next_pending_request().await?
-        else {
-            debug!("Woken up but no pending query was available");
-            return Ok(());
-        };
-
-        let sem = self.service_semaphore(service_id).await?;
-
-        info!("Dispatched request to {}", target_url);
+    // Holds its slot from claim until the final status is stored, so a service never has
+    // more than `capacity` rows in memory and never more than `capacity` requests on the wire
+    async fn deliver(
+        self,
+        seq: u64,
+        url: Arc<str>,
+        payload: String,
+        _slot: OwnedSemaphorePermit,
+        in_flight: Arc<Mutex<HashSet<u64>>>,
+    ) {
+        info!("Dispatched request to {}", url);
 
         let mut delay = BASE_DELAY;
         let mut status = "FAILED";
 
         for attempt in 1..=MAX_ATTEMPTS {
-            let outcome = {
-                let _permit = sem.acquire().await.expect("impossible");
-                self.try_send(&target_url, &payload).await
-            };
-
-            match outcome {
+            match self.try_send(&url, &payload).await {
                 Attempt::Delivered => {
-                    info!("Delivered to {} on attempt {}", target_url, attempt);
+                    info!("Delivered to {} on attempt {}", url, attempt);
                     status = "SUCCESS";
                     break;
                 }
                 Attempt::GiveUp(why) => {
-                    warn!("Delivery to {} rejected: {}", target_url, why);
+                    warn!("Delivery to {} rejected: {}", url, why);
                     break;
                 }
                 Attempt::Retry(why) if attempt < MAX_ATTEMPTS => {
                     warn!(
                         "Attempt {}/{} to {} failed: {}, retrying in {:?}",
-                        attempt, MAX_ATTEMPTS, target_url, why, delay
+                        attempt, MAX_ATTEMPTS, url, why, delay
                     );
                     sleep(delay).await;
                     delay = (delay * 2).min(MAX_DELAY);
@@ -121,42 +130,151 @@ impl Dispatcher {
                 Attempt::Retry(why) => {
                     warn!(
                         "Giving up on {} after {} attempts: {}",
-                        target_url, MAX_ATTEMPTS, why
+                        url, MAX_ATTEMPTS, why
                     );
                 }
             }
         }
 
-        self.database
-            .set_query_status(client_id, &event_id, service_id, status)
-            .await
+        persist("Storing delivery status", || {
+            self.database.set_query_status(seq, status)
+        })
+        .await;
+
+        // Only after the status is stored, so recovery can never pick up a finished row
+        in_flight.lock().unwrap().remove(&seq);
+    }
+
+    // Sole owner of one service's rows. Claims until the table has nothing left for it,
+    // then sleeps until the next ring; a ring or a database error can never strand a row.
+    async fn claimer(self, service_id: u32, bell: Arc<Notify>, stop: CancellationToken) {
+        let (url, capacity) =
+            persist("Loading service", || self.database.get_service(service_id)).await;
+        info!("Loaded capacity {} for service {}", capacity, service_id);
+
+        let url: Arc<str> = url.into();
+        let slots = Arc::new(Semaphore::new(capacity));
+        let in_flight = Arc::new(Mutex::new(HashSet::new()));
+        let mut deliveries = JoinSet::new();
+        let mut delay = BASE_DELAY;
+
+        // After a failed claim the UPDATE may have committed without us seeing the reply,
+        // so rows can be PROCESSING with nobody delivering them; adopt those first
+        let mut recover = false;
+
+        loop {
+            let mut slot = vec![slots.clone().acquire_owned().await.expect("never closed")];
+            while let Ok(s) = slots.clone().try_acquire_owned() {
+                slot.push(s);
+            }
+
+            let claimed = if recover {
+                self.database.processing(service_id).await.map(|rows| {
+                    let owned = in_flight.lock().unwrap();
+                    rows.into_iter()
+                        .filter(|(seq, _)| !owned.contains(seq))
+                        .take(slot.len())
+                        .collect::<Vec<_>>()
+                })
+            } else {
+                self.database.claim(service_id, slot.len()).await
+            };
+
+            match claimed {
+                Err(e) => {
+                    warn!(
+                        "Claim for service {} failed: {}, retrying in {:?}",
+                        service_id, e, delay
+                    );
+                    recover = true;
+                    drop(slot);
+                    sleep(delay).await;
+                    delay = (delay * 2).min(MAX_DB_DELAY);
+                }
+                Ok(jobs) if jobs.is_empty() && recover => recover = false,
+                Ok(jobs) if jobs.is_empty() => {
+                    drop(slot);
+                    if stop.is_cancelled() {
+                        break;
+                    }
+                    debug!("Service {} has no pending requests", service_id);
+                    tokio::select! {
+                        _ = bell.notified() => {}
+                        _ = sleep(IDLE_RECHECK) => {}
+                        _ = stop.cancelled() => {}
+                    }
+                }
+                Ok(jobs) => {
+                    delay = BASE_DELAY;
+                    for ((seq, payload), slot) in jobs.into_iter().zip(slot) {
+                        in_flight.lock().unwrap().insert(seq);
+                        deliveries.spawn(self.clone().deliver(
+                            seq,
+                            url.clone(),
+                            payload,
+                            slot,
+                            in_flight.clone(),
+                        ));
+                    }
+                }
+            }
+
+            while let Some(res) = deliveries.try_join_next() {
+                report(res);
+            }
+        }
+
+        while let Some(res) = deliveries.join_next().await {
+            report(res);
+        }
+    }
+
+    fn spawn_claimers(
+        &self,
+        claimers: &mut JoinSet<()>,
+        started: &mut HashSet<u32>,
+        stop: &CancellationToken,
+    ) {
+        for id in self.doorbells.services() {
+            if started.insert(id) {
+                let bell = self.doorbells.bell(id);
+                claimers.spawn(self.clone().claimer(id, bell, stop.clone()));
+            }
+        }
     }
 
     pub async fn run(&self, stop: CancellationToken) -> Result<(), mysql_async::Error> {
-        let mut tasks = JoinSet::new();
         info!("Dispatcher started");
 
-        loop {
-            tokio::select! {
-                permit = self.pending_requests.acquire() => {
-                    permit.expect("impossible").forget();
-                    tasks.spawn(self.clone().handler());
+        // Backlog left by the previous run is claimed exactly like new work
+        for id in persist("Finding pending services", || {
+            self.database.pending_services()
+        })
+        .await
+        {
+            self.doorbells.ring(id);
+        }
 
-                    while let Some(res) = tasks.try_join_next() {
-                        report(res);
-                    }
-                }
+        let mut claimers = JoinSet::new();
+        let mut started = HashSet::new();
+
+        loop {
+            self.spawn_claimers(&mut claimers, &mut started, &stop);
+
+            while let Some(res) = claimers.try_join_next() {
+                report(res);
+            }
+
+            tokio::select! {
+                _ = self.doorbells.added.notified() => {}
                 _ = stop.cancelled() => break,
             }
         }
 
-        while let Ok(permit) = self.pending_requests.try_acquire() {
-            permit.forget();
-            tasks.spawn(self.clone().handler());
-        }
+        self.spawn_claimers(&mut claimers, &mut started, &stop);
 
-        info!("Dispatcher stopping, draining {} tasks", tasks.len());
-        while let Some(res) = tasks.join_next().await {
+        info!("Dispatcher stopping, draining {} services", claimers.len());
+        while let Some(res) = claimers.join_next().await {
             report(res);
         }
         info!("Dispatcher stopped");
@@ -164,10 +282,26 @@ impl Dispatcher {
     }
 }
 
-fn report(res: Result<Result<(), mysql_async::Error>, tokio::task::JoinError>) {
-    match res {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => error!("Dispatch database error: {}", e),
-        Err(e) => error!("Dispatch task failed: {}", e),
+async fn persist<T, F, Fut>(what: &str, mut op: F) -> T
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, mysql_async::Error>>,
+{
+    let mut delay = BASE_DELAY;
+    loop {
+        match op().await {
+            Ok(v) => return v,
+            Err(e) => {
+                error!("{} failed: {}, retrying in {:?}", what, e, delay);
+                sleep(delay).await;
+                delay = (delay * 2).min(MAX_DB_DELAY);
+            }
+        }
+    }
+}
+
+fn report(res: Result<(), tokio::task::JoinError>) {
+    if let Err(e) = res {
+        error!("Dispatch task failed: {}", e);
     }
 }
